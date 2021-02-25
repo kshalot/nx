@@ -1534,7 +1534,7 @@ ERL_NIF_TERM qr(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
   }
 
   xla::XlaOp q, r;
-  xla::QrExplicit(a, full_matrices, q, r);
+  xla::QrExplicit(*operand, full_matrices, q, r);
 
   ERL_NIF_TERM q_term = exla::nif::make<xla::XlaOp>(env, q);
   ERL_NIF_TERM r_term = exla::nif::make<xla::XlaOp>(env, r);
