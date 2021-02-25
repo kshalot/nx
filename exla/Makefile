@@ -54,11 +54,11 @@ $(TENSORFLOW_DIR):
 		git fetch --depth 1 origin $(EXLA_TENSORFLOW_GIT_REV) && \
 		git checkout FETCH_HEAD
 
-	cd $(TENSORFLOW_DIR) && \
-		sed -e '/register_toolchains("@local_config_python\/\/:py_toolchain")/ s/^#*/#/' -i.backup WORKSPACE && \
-		sed -e '/load("\/\/third_party\/py:python_configure.bzl", "python_configure")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl && \
-		sed -e '/native.register_toolchains("@local_execution_config_python\/\/:py_toolchain")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl && \
-		sed -e '/python_configure(name = "local_config_python")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl
+# 	cd $(TENSORFLOW_DIR) && \
+# 		sed -e '/register_toolchains("@local_config_python\/\/:py_toolchain")/ s/^#*/#/' -i.backup WORKSPACE && \
+# 		sed -e '/load("\/\/third_party\/py:python_configure.bzl", "python_configure")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl && \
+# 		sed -e '/native.register_toolchains("@local_execution_config_python\/\/:py_toolchain")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl && \
+# 		sed -e '/python_configure(name = "local_config_python")/ s/^#*/#/' -i.backup tensorflow/workspace.bzl
 
 clean:
 	cd $(TENSORFLOW_DIR) && bazel clean --expunge
