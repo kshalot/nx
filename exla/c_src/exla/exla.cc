@@ -1711,7 +1711,7 @@ ERL_NIF_TERM get_tpu_client(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
   EXLA_ASSIGN_OR_RETURN_NIF(std::shared_ptr<xla::PjRtClient> pjrt_client, xla::GetTpuClient(true), env);
 
-  return exla::ok(env);
+  return exla::nif::ok(env);
 }
 
 ERL_NIF_TERM get_default_device_ordinal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
