@@ -752,7 +752,7 @@ xla::StatusOr<ExlaClient*> GetTpuClient() {
   }
   xla::LocalClientOptions options;
   options.set_platform(platform);
-  EXLA_ASSIGN_OR_RETURN(LocalClient * client,
+  EXLA_ASSIGN_OR_RETURN(xla::LocalClient * client,
                         xla::ClientLibrary::GetOrCreateLocalClient(options));
 
   EXLA_ASSIGN_OR_RETURN(auto devices, GetTpuDevices(client));
