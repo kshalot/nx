@@ -723,7 +723,7 @@ xla::StatusOr<std::vector<std::unique_ptr<ExlaDevice>>> GetTpuDevices(LocalClien
   return devices;
 }
 
-StatusOr<ExlaClient*> GetTpuClient() {
+xla::StatusOr<ExlaClient*> GetTpuClient() {
   absl::Duration init_retry_timeout = absl::Minutes(1);
   tf_tpu::TpuPlatformInterface* platform =
     tf_tpu::TpuPlatformInterface::GetRegisteredPlatform(
