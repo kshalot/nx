@@ -750,10 +750,10 @@ xla::StatusOr<ExlaClient*> GetTpuClient() {
   if (platform->VisibleDeviceCount() <= 0) {
     return xla::InvalidArgument("No TPU devices found.");
   }
-  LocalClientOptions options;
+  xla::LocalClientOptions options;
   options.set_platform(platform);
   EXLA_ASSIGN_OR_RETURN(LocalClient * client,
-                        ClientLibrary::GetOrCreateLocalClient(options));
+                        xla::ClientLibrary::GetOrCreateLocalClient(options));
 
   EXLA_ASSIGN_OR_RETURN(auto devices, GetTpuDevices(client));
   int task_id = platform->GetTpuHostLocation().Id();
