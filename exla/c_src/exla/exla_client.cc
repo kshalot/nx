@@ -8,6 +8,7 @@
 
 namespace exla {
 
+using namespace tf_tpu = tensorflow::tpu;
 // ExlaBuffer functions
 xla::Status ExlaBuffer::Deallocate() {
   if (!empty()) {
@@ -695,7 +696,7 @@ xla::StatusOr<ExlaClient*> GetGpuClient(int num_replicas,
     /*gpu_run_options=*/std::move(gpu_run_options));
 }
 
-xla::StatusOr<std::vector<std::unique_ptr<ExlaDevice>>> GetTpuDevices(LocalClient* client) {
+xla::StatusOr<std::vector<std::unique_ptr<ExlaDevice>>> GetTpuDevices(xla::LocalClient* client) {
   std::vector<std::unique_ptr<ExlaDevice>> devices;
   tf_tpu::TpuTopologyExternal topology =
       tf_tpu::TpuPlatformInterface::GetRegisteredPlatform()->topology();
