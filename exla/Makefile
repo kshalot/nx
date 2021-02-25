@@ -15,7 +15,7 @@ EXLA_TENSORFLOW_GIT_REPO ?= https://github.com/tensorflow/tensorflow.git
 # * Makefile
 # * Makefile.win
 # * lib/exla/aot/compiler.ex
-EXLA_TENSORFLOW_GIT_REV ?= 6af836f407f546cf2f9ab3b5fcb7a8285bda5c96
+EXLA_TENSORFLOW_GIT_REV ?= db17284f34e61b896111256275b8b238cba10e33
 
 # Private configuration
 EXLA_SO = priv/libexla.so
