@@ -11,6 +11,7 @@
 #include "tensorflow/core/framework/allocator.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/platform/status.h"
+#include "tensorflow/compiler/xla/pjrt/tpu_client.h"
 
 // The implementations in this module are designed after implementations
 // in the XLA runtime, PjRt. Deviations are made where it makes sense
@@ -382,6 +383,7 @@ xla::StatusOr<ExlaClient*> GetHostClient(int num_replicas,
 xla::StatusOr<ExlaClient*> GetGpuClient(int num_replicas,
                                         int intra_op_parallelism_threads,
                                         const char* platform_name);
+xla::StatusOr<ExlaClient*> GetTpuClient();
 }  // namespace exla
 
 #endif

@@ -16,9 +16,6 @@
 #include "tensorflow/compiler/xla/client/lib/svd.h"
 #include "tensorflow/compiler/xla/primitive_util.h"
 
-// TODO(seanmor5): conditional include?
-#include "tensorflow/compiler/xla/pjrt/tpu_client.h"
-
 // All of these are created with calls to `new` and subsequently
 // passed to the VM as pointers-to-pointers so we balance it out
 // with calls to delete rather than just using the default destructor.
@@ -1709,9 +1706,9 @@ ERL_NIF_TERM get_tpu_client(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return exla::nif::error(env, "Bad argument count.");
   }
 
-  EXLA_ASSIGN_OR_RETURN_NIF(std::shared_ptr<xla::PjRtClient> pjrt_client, xla::GetTpuClient(true), env);
+  EXLA_ASSIGN_OR_RETURN_NIF(exla::ExlaClient* client, exla::GetTpuClient(), env);
 
-  return exla::nif::ok(env);
+  return exla::nif::ok(env, exla::nif::make<exla::ExlaClient*>(env, client));
 }
 
 ERL_NIF_TERM get_default_device_ordinal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {

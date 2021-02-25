@@ -34,6 +34,7 @@ cc_library (
   deps = [
     "@org_tensorflow//tensorflow/compiler/xla/client:local_client",
     "@org_tensorflow//tensorflow/stream_executor:stream_executor",
+    "@org_tensorflow//tensorflow/compiler/xla/pjrt:tpu_client",
   ],
 )
 
@@ -50,6 +51,7 @@ cc_library(
     "@org_tensorflow//tensorflow/compiler/xla/client:client_library",
     "@org_tensorflow//tensorflow/compiler/xla/service/gpu:gpu_executable_run_options",
     "@org_tensorflow//tensorflow/core:lib",
+    "@org_tensorflow//tensorflow/compiler/xla/pjrt:tpu_client",
   ],
 )
 
@@ -100,7 +102,6 @@ cc_binary(
     "@org_tensorflow//tensorflow/compiler/xla/client:xla_builder",
     "@org_tensorflow//tensorflow/compiler/xla/client:xla_computation",
     "@org_tensorflow//tensorflow/compiler/jit:xla_cpu_jit",
-    "@org_tensorflow//tensorflow/compiler/xla/pjrt:tpu_client",
   ],
   linkopts = ["-shared"],
   linkshared = 1,

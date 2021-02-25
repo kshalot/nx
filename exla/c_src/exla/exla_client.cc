@@ -695,4 +695,75 @@ xla::StatusOr<ExlaClient*> GetGpuClient(int num_replicas,
     /*gpu_run_options=*/std::move(gpu_run_options));
 }
 
+xla::StatusOr<std::vector<std::unique_ptr<ExlaDevice>>> GetTpuDevices(LocalClient* client) {
+  std::vector<std::unique_ptr<ExlaDevice>> devices;
+  tf_tpu::TpuTopologyExternal topology =
+      tf_tpu::TpuPlatformInterface::GetRegisteredPlatform()->topology();
+
+  std::map<int, int> core_id_to_device_ordinal;
+  se::StreamExecutor* executor;
+  tf_tpu::TpuExecutorInterface* tpu_executor;
+  for (int i = 0; i < client->device_count(); ++i) {
+    executor = client->backend().stream_executor(i).ValueOrDie();
+    tpu_executor = tensorflow::down_cast<tf_tpu::TpuExecutorInterface*>(executor->implementation());
+    core_id_to_device_ordinal[tpu_executor->GetCoreLocationExternal().Id()] = i;
+  }
+
+  for (const tf_tpu::TpuCoreLocationExternal& core :
+       topology.cores(TpuCoreTypeEnum::kTensorCore)) {
+    auto it = core_id_to_device_ordinal.find(core.Id());
+    int device_ordinal = (it != core_id_to_device_ordinal.end()) ? it->second : -1;
+    int task_id = topology.IdForHost(core.host_coordinates());
+    const tf_tpu::TpuDimensionsExternal coords = core.chip_coordinates();
+    std::array<int, 3> coords_array = {coords.x, coords.y, coords.z};
+
+    auto device = absl::make_unique<ExlaDevice>(core, tpu_executor, client, task_id, coords_array);
+    devices.push_back(std::move(device));
+  }
+  return devices;
+}
+
+StatusOr<ExlaClient*> GetTpuClient() {
+  absl::Duration init_retry_timeout = absl::Minutes(1);
+  tf_tpu::TpuPlatformInterface* platform =
+    tf_tpu::TpuPlatformInterface::GetRegisteredPlatform(
+          /*initialize_platform=*/true, /*num_tries=*/1);
+
+  if (platform == nullptr) {
+    return xla::InvalidArgument("TpuPlatform is not available.");
+  }
+  // NOTE: We retry in a loop since some pod failures are transient (e.g. some
+  // RPCs may timeout waiting for other hosts to come up, but will succeed
+  // at a later point if retried).
+  auto start = absl::Now();
+  // TODO(b/165870356): TpuPlatform::Initialized() always returns true!
+  auto status = platform->Initialize({});
+  while (!platform->Initialized()) {
+    status = platform->Initialize({});
+    if (!status.ok()) {
+      LOG(ERROR) << "Platform initialization failed: " << status;
+      if ((absl::Now() - start) >= init_retry_timeout) {
+        return status;
+      }
+    }
+  }
+  if (platform->VisibleDeviceCount() <= 0) {
+    return xla::InvalidArgument("No TPU devices found.");
+  }
+  LocalClientOptions options;
+  options.set_platform(platform);
+  EXLA_ASSIGN_OR_RETURN(LocalClient * client,
+                        ClientLibrary::GetOrCreateLocalClient(options));
+
+  EXLA_ASSIGN_OR_RETURN(auto devices, GetTpuDevices(client));
+  int task_id = platform->GetTpuHostLocation().Id();
+
+  return new ExlaClient(client,
+                        0,
+                        std::move(devices),
+                        nullptr,
+                        nullptr,
+                        nullptr);
+}
+
 }  // namespace exla
