@@ -16,6 +16,9 @@
 #include "tensorflow/compiler/xla/client/lib/svd.h"
 #include "tensorflow/compiler/xla/primitive_util.h"
 
+// TODO(seanmor5): conditional include?
+#include "tensorflow/compiler/xla/pjrt/tpu_client.h"
+
 // All of these are created with calls to `new` and subsequently
 // passed to the VM as pointers-to-pointers so we balance it out
 // with calls to delete rather than just using the default destructor.
@@ -1701,6 +1704,16 @@ ERL_NIF_TERM get_rocm_client(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
   return exla::nif::ok(env, exla::nif::make<exla::ExlaClient*>(env, client));
 }
 
+ERL_NIF_TERM get_tpu_client(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 0) {
+    return exla::nif::error(env, "Bad argument count.");
+  }
+
+  EXLA_ASSIGN_OR_RETURN_NIF(std::shared_ptr<xla::PjRtClient> pjrt_client, xla::GetTpuClient(true), env);
+
+  return exla::ok(env);
+}
+
 ERL_NIF_TERM get_default_device_ordinal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
   if (argc != 1) {
     return exla::nif::error(env, "Bad argument count.");
@@ -1980,6 +1993,7 @@ static ErlNifFunc exla_funcs[] = {
   {"get_host_client", 2, get_host_client},
   {"get_cuda_client", 2, get_cuda_client},
   {"get_rocm_client", 2, get_rocm_client},
+  {"get_tpu_client", 0, get_tpu_client},
   {"get_device_count", 1, get_device_count},
   {"get_default_device_ordinal", 1, get_default_device_ordinal},
   {"get_supported_platforms", 0, get_supported_platforms},

@@ -176,6 +176,9 @@ defmodule EXLA.NIF do
   def get_rocm_client(_num_replicas, _intra_op_parallelism_threads),
     do: :erlang.nif_error(:undef)
 
+  def get_tpu_client(),
+    do: :erlang.nif_error(:undef)
+
   def get_supported_platforms, do: :erlang.nif_error(:undef)
 
   def get_default_device_ordinal(_client),
