@@ -45,14 +45,26 @@ defmodule EXLA.Computation do
     # TODO: Validate replicas and partitions against the client
 
     ref =
-      EXLA.NIF.compile(
-        client.ref,
-        computation.ref,
-        Enum.map(argument_shapes, & &1.ref),
-        num_replicas,
-        num_partitions,
-        use_spmd_int
-      )
+      case client.platform do
+        :tpu ->
+          EXLA.NIF.compile_tpu(
+            client.ref,
+            computation.ref,
+            Enum.map(argument_shapes, & &1.ref),
+            num_replicas,
+            num_partitions,
+            use_spmd_int
+          )
+        _ ->
+          EXLA.NIF.compile(
+            client.ref,
+            computation.ref,
+            Enum.map(argument_shapes, & &1.ref),
+            num_replicas,
+            num_partitions,
+            use_spmd_int
+          )
+      end
       |> unwrap!()
 
     %Executable{

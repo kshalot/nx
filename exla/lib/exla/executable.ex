@@ -90,12 +90,21 @@ defmodule EXLA.Executable do
         %Buffer{ref: {ref, _}, data: nil} ->
           ref
 
-        %Buffer{data: data, shape: shape, ref: nil} ->
-          {data, shape.ref}
+        %Buffer{data: data, shape: shape, ref: nil} = buffer ->
+          if client.platform == :tpu,
+            do: Buffer.place_on_device(buffer, client, 0),
+            else: {data, shape.ref}
       end)
 
     data =
       case client.platform do
+        :tpu ->
+          EXLA.NIF.run_tpu(
+            client.ref,
+            exec,
+            inputs,
+            0
+          )
         :host ->
           EXLA.NIF.run_cpu(
             client.ref,

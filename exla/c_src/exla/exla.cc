@@ -28,6 +28,15 @@ void free_exla_executable(ErlNifEnv* env, void * obj) {
   }
 }
 
+void free_exla_tpu_executable(ErlNifEnv* env, void * obj) {
+  exla::ExlaTpuExecutable** executable = reinterpret_cast<exla::ExlaTpuExecutable**>(obj);
+  if (*executable != nullptr) {
+    delete *executable;
+    *executable = nullptr;
+  }
+}
+
+
 void free_xla_builder(ErlNifEnv* env, void * obj) {
   xla::XlaBuilder** builder = reinterpret_cast<xla::XlaBuilder**>(obj);
   if (*builder != nullptr) {
@@ -44,8 +53,24 @@ void free_exla_client(ErlNifEnv* env, void * obj) {
   }
 }
 
+void free_exla_tpu_client(ErlNifEnv* env, void * obj) {
+  exla::ExlaTpuClient** client = reinterpret_cast<exla::ExlaTpuClient**>(obj);
+  if (*client != nullptr) {
+    delete *client;
+    *client = nullptr;
+  }
+}
+
 void free_exla_buffer(ErlNifEnv* env, void * obj) {
   exla::ExlaBuffer** buffer = reinterpret_cast<exla::ExlaBuffer**>(obj);
+  if (*buffer != nullptr) {
+    delete *buffer;
+    *buffer = nullptr;
+  }
+}
+
+void free_exla_tpu_buffer(ErlNifEnv* env, void * obj) {
+  exla::ExlaTpuBuffer** buffer = reinterpret_cast<exla::ExlaTpuBuffer**>(obj);
   if (*buffer != nullptr) {
     delete *buffer;
     *buffer = nullptr;
@@ -67,6 +92,9 @@ static int open_resources(ErlNifEnv* env) {
   if (!exla::nif::open_resource<exla::ExlaExecutable*>(env, mod, "Executable", free_exla_executable)) {
     return -1;
   }
+  if (!exla::nif::open_resource<exla::ExlaTpuExecutable*>(env, mod, "TpuExecutable", free_exla_tpu_executable)) {
+    return -1;
+  }
   if (!exla::nif::open_resource<xla::XlaBuilder*>(env, mod, "Builder", free_xla_builder)) {
     return -1;
   }
@@ -74,6 +102,12 @@ static int open_resources(ErlNifEnv* env) {
     return -1;
   }
   if (!exla::nif::open_resource<exla::ExlaBuffer*>(env, mod, "ExlaBuffer", free_exla_buffer)) {
+    return -1;
+  }
+  if (!exla::nif::open_resource<exla::ExlaTpuClient*>(env, mod, "ExlaTpuClient", free_exla_tpu_client)) {
+    return -1;
+  }
+  if (!exla::nif::open_resource<exla::ExlaTpuBuffer*>(env, mod, "ExlaTpuBuffer", free_exla_tpu_buffer)) {
     return -1;
   }
   return 1;
@@ -202,6 +236,35 @@ ERL_NIF_TERM binary_to_device_mem(ErlNifEnv* env, int argc, const ERL_NIF_TERM a
     (*client)->BufferFromBinary(bin, *shape, device, false, false), env);
 
   return exla::nif::ok(env, exla::nif::make<exla::ExlaBuffer*>(env, buffer));
+}
+
+ERL_NIF_TERM binary_to_tpu_mem(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 4) {
+    return exla::nif::error(env, "Bad argument count.");
+  }
+
+  ErlNifBinary bin;
+  xla::Shape* shape;
+  exla::ExlaTpuClient** client;
+  int device_id;
+
+  if (!exla::nif::get<exla::ExlaTpuClient*>(env, argv[0], client)) {
+    return exla::nif::error(env, "Unable to get client.");
+  }
+  if (!exla::nif::get_binary(env, argv[1], &bin)) {
+    return exla::nif::error(env, "Unable to get data.");
+  }
+  if (!exla::nif::get<xla::Shape>(env, argv[2], shape)) {
+    return exla::nif::error(env, "Unable to get shape.");
+  }
+  if (!exla::nif::get(env, argv[3], &device_id)) {
+    return exla::nif::error(env, "Unable to get device ordinal.");
+  }
+
+  EXLA_ASSIGN_OR_RETURN_NIF(exla::ExlaTpuBuffer* buffer,
+    (*client)->BufferFromBinary(bin, *shape, device_id), env);
+
+  return exla::nif::ok(env, exla::nif::make<exla::ExlaTpuBuffer*>(env, buffer));
 }
 
 ERL_NIF_TERM read_device_mem(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -1706,9 +1769,9 @@ ERL_NIF_TERM get_tpu_client(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return exla::nif::error(env, "Bad argument count.");
   }
 
-  EXLA_ASSIGN_OR_RETURN_NIF(exla::ExlaClient* client, exla::GetTpuClient(), env);
+  EXLA_ASSIGN_OR_RETURN_NIF(exla::ExlaTpuClient* client, exla::GetTpuClient(), env);
 
-  return exla::nif::ok(env, exla::nif::make<exla::ExlaClient*>(env, client));
+  return exla::nif::ok(env, exla::nif::make<exla::ExlaTpuClient*>(env, client));
 }
 
 ERL_NIF_TERM get_default_device_ordinal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -1805,6 +1868,48 @@ ERL_NIF_TERM compile(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     (*client)->Compile(*computation, argument_layouts, build_options, false), env);
 
   return exla::nif::ok(env, exla::nif::make<exla::ExlaExecutable*>(env, executable));
+}
+
+ERL_NIF_TERM compile_tpu(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 6) {
+    return exla::nif::error(env, "Bad argument count.");
+  }
+
+  exla::ExlaTpuClient** client;
+  xla::XlaComputation* computation;
+  std::vector<xla::Shape> argument_layouts;
+  xla::ExecutableBuildOptions build_options;
+  int num_replicas;
+  int num_partitions;
+  bool use_spmd;
+
+  if (!exla::nif::get<exla::ExlaTpuClient*>(env, argv[0], client)) {
+    return exla::nif::error(env, "Unable to get client.");
+  }
+  if (!exla::nif::get<xla::XlaComputation>(env, argv[1], computation)) {
+    return exla::nif::error(env, "Unable to get computation.");
+  }
+  if (!exla::nif::get_list<xla::Shape>(env, argv[2], argument_layouts)) {
+    return exla::nif::error(env, "Unable to get argument layouts.");
+  }
+  if (!exla::nif::get(env, argv[3], &num_replicas)) {
+    return exla::nif::error(env, "Unable to get Number of Replicas.");
+  }
+  if (!exla::nif::get(env, argv[4], &num_partitions)) {
+    return exla::nif::error(env, "Unable to get Number of Partitions.");
+  }
+  if (!exla::nif::get(env, argv[5], &use_spmd)) {
+    return exla::nif::error(env, "Unable to get SPMD Partitioning Flag.");
+  }
+
+  build_options.set_num_replicas(num_replicas);
+  build_options.set_num_partitions(num_partitions);
+  build_options.set_use_spmd_partitioning(use_spmd);
+
+  EXLA_ASSIGN_OR_RETURN_NIF(exla::ExlaTpuExecutable* executable,
+    (*client)->Compile(*computation, argument_layouts, build_options), env);
+
+  return exla::nif::ok(env, exla::nif::make<exla::ExlaTpuExecutable*>(env, executable));
 }
 
 ERL_NIF_TERM await_streams(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -1909,6 +2014,33 @@ ERL_NIF_TERM run(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
   return term;
 }
 
+ERL_NIF_TERM run_tpu(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 4) {
+    return exla::nif::error(env, "Bad argument count.");
+  }
+
+  exla::ExlaTpuClient** client;
+  exla::ExlaTpuExecutable** executable;
+  int device_id;
+
+  ERL_NIF_TERM arguments = argv[2];
+
+  if (!exla::nif::get<exla::ExlaTpuClient*>(env, argv[0], client)) {
+    return exla::nif::error(env, "Unable to get client.");
+  }
+  if (!exla::nif::get<exla::ExlaTpuExecutable*>(env, argv[1], executable)) {
+    return exla::nif::error(env, "Unable to get executable.");
+  }
+  if (!exla::nif::get(env, argv[3], &device_id)) {
+    return exla::nif::error(env, "Unable to get device id");
+  }
+
+  EXLA_ASSIGN_OR_RETURN_NIF(ERL_NIF_TERM term,
+    (*executable)->Run(env, arguments, *client, device_id), env);
+
+  return term;
+}
+
 // Logging Functions
 
 ERL_NIF_TERM start_log_sink(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -1990,13 +2122,17 @@ static ErlNifFunc exla_funcs[] = {
   {"get_host_client", 2, get_host_client},
   {"get_cuda_client", 2, get_cuda_client},
   {"get_rocm_client", 2, get_rocm_client},
-  {"get_tpu_client", 0, get_tpu_client},
   {"get_device_count", 1, get_device_count},
   {"get_default_device_ordinal", 1, get_default_device_ordinal},
   {"get_supported_platforms", 0, get_supported_platforms},
   {"compile", 6, compile, ERL_NIF_DIRTY_JOB_CPU_BOUND},
   {"await_streams_cpu", 3, await_streams, ERL_NIF_DIRTY_JOB_CPU_BOUND},
   {"await_streams_io", 3, await_streams, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  // TPU
+  {"get_tpu_client", 0, get_tpu_client},
+  {"compile_tpu", 6, compile_tpu},
+  {"binary_to_tpu_mem", 4, binary_to_tpu_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"run_tpu", 4, run_tpu, ERL_NIF_DIRTY_JOB_IO_BOUND},
   // ExlaBuffer
   {"binary_to_device_mem", 4, binary_to_device_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"read_device_mem", 2, read_device_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},

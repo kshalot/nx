@@ -30,7 +30,12 @@ defmodule EXLA.Buffer do
     ordinal = Client.validate_device_ordinal!(client, ordinal)
 
     ref =
-      EXLA.NIF.binary_to_device_mem(client.ref, buffer.data, buffer.shape.ref, ordinal)
+      case client.platform do
+        :tpu ->
+          EXLA.NIF.binary_to_tpu_mem(client.ref, buffer.data, buffer.shape.ref, ordinal)
+        _ ->
+          EXLA.NIF.binary_to_device_mem(client.ref, buffer.data, buffer.shape.ref, ordinal)
+      end
       |> unwrap!()
 
     %Buffer{buffer | data: nil, ref: {ref, client.name}}

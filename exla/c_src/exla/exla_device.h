@@ -5,7 +5,6 @@
 
 #include "tensorflow/compiler/xla/client/local_client.h"
 #include "tensorflow/stream_executor/stream_executor.h"
-#include "tensorflow/compiler/xla/pjrt/tpu_client.h"
 
 namespace exla {
 
@@ -73,26 +72,6 @@ class ExlaDevice {
     std::unique_ptr<se::Stream> device_to_host_stream_;
     std::unique_ptr<se::Stream> callback_stream_;
 };
-
-class ExlaTpuDevice : public ExlaDevice {
- public:
-  ExlaTpuDevice(const tensorflow::tpu::TpuCoreLocationExternal core,
-                se::StreamExecutor* executor,
-                xla::LocalClient* client,
-                int task_id, const std::array<int, 3>& coords)
-                : ExlaDevice(core.Id(), executor, client),
-                  core_(core),
-                  coords_(coords) {}
-
-  const std::array<int, 3>& coords() const { return coords_; }
-  int core_on_chip() const { return core_.index(); }
-  const tensorflow::tpu::TpuCoreLocationExternal core() const { return core_; }
-
- private:
-  const tensorflow::tpu::TpuCoreLocationExternal core_;
-  const std::array<int, 3> coords_;
-};
-
 }  // namespace exla
 
 #endif

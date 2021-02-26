@@ -176,9 +176,6 @@ defmodule EXLA.NIF do
   def get_rocm_client(_num_replicas, _intra_op_parallelism_threads),
     do: :erlang.nif_error(:undef)
 
-  def get_tpu_client(),
-    do: :erlang.nif_error(:undef)
-
   def get_supported_platforms, do: :erlang.nif_error(:undef)
 
   def get_default_device_ordinal(_client),
@@ -258,4 +255,24 @@ defmodule EXLA.NIF do
 
   def start_log_sink(_sink_pid),
     do: :erlang.nif_error(:undef)
+
+  def get_tpu_client, do: :erlang.nif_error(:undef)
+
+  def compile_tpu(
+      _client,
+      _computation,
+      _argument_layouts,
+      _num_replicas,
+      _num_partitions,
+      _use_spmd
+    ), do: :erlang.nif_error(:undef)
+
+  def binary_to_tpu_mem(_client, _binary, _shape, _ordinal), do: :erlang.nif_error(:undef)
+
+  def run_tpu(
+    _client,
+    _executable,
+    _arguments,
+    _device_id), do: :erlang.nif_error(:undef)
+
 end

@@ -39,6 +39,7 @@ defmodule EXLA.Client do
           :host -> EXLA.NIF.get_host_client(num_replicas, intra_op_parallelism_threads)
           :cuda -> EXLA.NIF.get_cuda_client(num_replicas, intra_op_parallelism_threads)
           :rocm -> EXLA.NIF.get_rocm_client(num_replicas, intra_op_parallelism_threads)
+          :tpu -> EXLA.NIF.get_tpu_client()
           _ -> raise ArgumentError, "unknown Exla platform: #{inspect(platform)}"
         end
         |> unwrap!()

@@ -8,7 +8,6 @@
 
 namespace exla {
 
-using namespace tf_tpu = tensorflow::tpu;
 // ExlaBuffer functions
 xla::Status ExlaBuffer::Deallocate() {
   if (!empty()) {
@@ -606,6 +605,72 @@ ExlaClient::Compile(const xla::XlaComputation& computation,
   return executable;
 }
 
+xla::StatusOr<ExlaTpuExecutable*> ExlaTpuClient::Compile(const xla::XlaComputation& computation,
+                                                         std::vector<xla::Shape> argument_layouts,
+                                                         xla::ExecutableBuildOptions& build_options) {
+  xla::CompileOptions compile_options =
+    {.argument_layouts = argument_layouts,
+      .executable_build_options = build_options,
+      .compile_portable_executable = true};
+
+  EXLA_ASSIGN_OR_RETURN(std::unique_ptr<xla::PjRtExecutable> exec,
+    client()->Compile(computation, compile_options));
+
+  return new ExlaTpuExecutable(std::move(exec));
+}
+
+xla::StatusOr<ExlaTpuBuffer*> ExlaTpuClient::BufferFromBinary(ErlNifBinary& binary,
+                                                              xla::Shape& shape,
+                                                              int device_id) {
+  void * data = reinterpret_cast<void *>(binary.data);
+  xla::PjRtClient::HostBufferSemantics semantics =
+    xla::PjRtClient::HostBufferSemantics::kImmutableOnlyDuringCall;
+  std::function<void()> on_done_with_host_buffer =
+    [binary {std::move(binary)}]() { /* keeps binary alive */ };
+
+  EXLA_ASSIGN_OR_RETURN(xla::PjRtDevice* device, client()->LookupDevice(device_id));
+
+  EXLA_ASSIGN_OR_RETURN(std::unique_ptr<xla::PjRtBuffer> buffer,
+    client()->BufferFromHostBuffer(data, shape, semantics, std::move(on_done_with_host_buffer), device));
+
+  return new ExlaTpuBuffer(std::move(buffer));
+}
+
+xla::StatusOr<ERL_NIF_TERM> ExlaTpuExecutable::Run(ErlNifEnv* env,
+                                                   ERL_NIF_TERM arguments,
+                                                   ExlaTpuClient* client,
+                                                   int device_id) {
+  unsigned int length;
+  if (!enif_get_list_length(env, arguments, &length)) {
+    return xla::InvalidArgument("Argument is not a list.");
+  }
+  ERL_NIF_TERM head, tail;
+  ERL_NIF_TERM list = arguments;
+  std::vector<xla::PjRtBuffer*> argument_buffers;
+  argument_buffers.reserve(length);
+
+  while (enif_get_list_cell(env, list, &head, &tail)) {
+    ExlaTpuBuffer** tpu_buffer;
+    if (!nif::get<ExlaTpuBuffer*>(env, head, tpu_buffer)) {
+      return xla::InvalidArgument("Bad buffer.");
+    }
+    argument_buffers.push_back((*tpu_buffer)->buffer());
+    list = tail;
+  }
+
+  xla::ExecuteOptions exec_opts;
+
+  EXLA_ASSIGN_OR_RETURN(xla::PjRtDevice* device, client->client()->LookupDevice(device_id));
+
+  EXLA_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<xla::PjRtBuffer>> result,
+    executable()->ExecutePortable(argument_buffers, device, exec_opts));
+
+
+  ExlaTpuBuffer* result_tpu_buff = new ExlaTpuBuffer(std::move(result.at(0)));
+
+  return nif::ok(env, nif::make<ExlaTpuBuffer*>(env, result_tpu_buff));
+}
+
 xla::StatusOr<ExlaClient*> GetHostClient(int num_replicas,
                                          int intra_op_parallelism_threads) {
   EXLA_ASSIGN_OR_RETURN(se::Platform *platform,
@@ -696,75 +761,11 @@ xla::StatusOr<ExlaClient*> GetGpuClient(int num_replicas,
     /*gpu_run_options=*/std::move(gpu_run_options));
 }
 
-xla::StatusOr<std::vector<std::unique_ptr<ExlaDevice>>> GetTpuDevices(xla::LocalClient* client) {
-  std::vector<std::unique_ptr<ExlaDevice>> devices;
-  tf_tpu::TpuTopologyExternal topology =
-      tf_tpu::TpuPlatformInterface::GetRegisteredPlatform()->topology();
+xla::StatusOr<ExlaTpuClient*> GetTpuClient() {
+  EXLA_ASSIGN_OR_RETURN(std::shared_ptr<xla::PjRtClient> tpu_client,
+    xla::GetTpuClient(true, absl::Minutes(1)));
 
-  std::map<int, int> core_id_to_device_ordinal;
-  se::StreamExecutor* executor;
-  tf_tpu::TpuExecutorInterface* tpu_executor;
-  for (int i = 0; i < client->device_count(); ++i) {
-    executor = client->backend().stream_executor(i).ValueOrDie();
-    tpu_executor = tensorflow::down_cast<tf_tpu::TpuExecutorInterface*>(executor->implementation());
-    core_id_to_device_ordinal[tpu_executor->GetCoreLocationExternal().Id()] = i;
-  }
-
-  for (const tf_tpu::TpuCoreLocationExternal& core :
-       topology.cores(TpuCoreTypeEnum::kTensorCore)) {
-    auto it = core_id_to_device_ordinal.find(core.Id());
-    int device_ordinal = (it != core_id_to_device_ordinal.end()) ? it->second : -1;
-    int task_id = topology.IdForHost(core.host_coordinates());
-    const tf_tpu::TpuDimensionsExternal coords = core.chip_coordinates();
-    std::array<int, 3> coords_array = {coords.x, coords.y, coords.z};
-
-    auto device = absl::make_unique<ExlaDevice>(core, tpu_executor, client, task_id, coords_array);
-    devices.push_back(std::move(device));
-  }
-  return devices;
-}
-
-xla::StatusOr<ExlaClient*> GetTpuClient() {
-  absl::Duration init_retry_timeout = absl::Minutes(1);
-  tf_tpu::TpuPlatformInterface* platform =
-    tf_tpu::TpuPlatformInterface::GetRegisteredPlatform(
-          /*initialize_platform=*/true, /*num_tries=*/1);
-
-  if (platform == nullptr) {
-    return xla::InvalidArgument("TpuPlatform is not available.");
-  }
-  // NOTE: We retry in a loop since some pod failures are transient (e.g. some
-  // RPCs may timeout waiting for other hosts to come up, but will succeed
-  // at a later point if retried).
-  auto start = absl::Now();
-  // TODO(b/165870356): TpuPlatform::Initialized() always returns true!
-  auto status = platform->Initialize({});
-  while (!platform->Initialized()) {
-    status = platform->Initialize({});
-    if (!status.ok()) {
-      LOG(ERROR) << "Platform initialization failed: " << status;
-      if ((absl::Now() - start) >= init_retry_timeout) {
-        return status;
-      }
-    }
-  }
-  if (platform->VisibleDeviceCount() <= 0) {
-    return xla::InvalidArgument("No TPU devices found.");
-  }
-  xla::LocalClientOptions options;
-  options.set_platform(platform);
-  EXLA_ASSIGN_OR_RETURN(xla::LocalClient * client,
-                        xla::ClientLibrary::GetOrCreateLocalClient(options));
-
-  EXLA_ASSIGN_OR_RETURN(auto devices, GetTpuDevices(client));
-  int task_id = platform->GetTpuHostLocation().Id();
-
-  return new ExlaClient(client,
-                        0,
-                        std::move(devices),
-                        nullptr,
-                        nullptr,
-                        nullptr);
+  return new ExlaTpuClient(/*tpu_client=*/tpu_client);
 }
 
 }  // namespace exla

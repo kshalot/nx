@@ -377,13 +377,48 @@ class ExlaClient {
   std::vector<std::unique_ptr<ExlaDevice>> devices_;
 };
 
+// For now, TPU support is built on PjRt
+class ExlaTpuExecutable;
+
+class ExlaTpuBuffer {
+ public:
+  ExlaTpuBuffer(std::unique_ptr<xla::PjRtBuffer> tpu_buffer) : tpu_buffer_(std::move(tpu_buffer)) {};
+  xla::PjRtBuffer* buffer() { return tpu_buffer_.release(); }
+ private:
+  std::unique_ptr<xla::PjRtBuffer> tpu_buffer_;
+};
+
+class ExlaTpuClient {
+ public:
+  ExlaTpuClient(std::shared_ptr<xla::PjRtClient> tpu_client) : tpu_client_(tpu_client) {};
+  xla::PjRtClient* client() { return tpu_client_.get(); }
+  xla::StatusOr<ExlaTpuExecutable*> Compile(const xla::XlaComputation&,
+                                            std::vector<xla::Shape> argument_layouts,
+                                            xla::ExecutableBuildOptions& build_options);
+  xla::StatusOr<ExlaTpuBuffer*> BufferFromBinary(ErlNifBinary& binary,
+                                                  xla::Shape& shape,
+                                                  int device_id);
+ private:
+  std::shared_ptr<xla::PjRtClient> tpu_client_;
+};
+
+class ExlaTpuExecutable {
+ public:
+  ExlaTpuExecutable(std::unique_ptr<xla::PjRtExecutable> tpu_exec) : tpu_exec_(std::move(tpu_exec)) {};
+  xla::PjRtExecutable* executable() { return tpu_exec_.get(); }
+  xla::StatusOr<ERL_NIF_TERM> Run(ErlNifEnv* env, ERL_NIF_TERM arguments,
+                                  ExlaTpuClient* client, int device_id);
+ private:
+  std::unique_ptr<xla::PjRtExecutable> tpu_exec_;
+};
+
 // TODO(seanmor5): Separate into different device classes similar to PjRt
 xla::StatusOr<ExlaClient*> GetHostClient(int num_replicas,
                                          int intra_op_parallelism_threads);
 xla::StatusOr<ExlaClient*> GetGpuClient(int num_replicas,
                                         int intra_op_parallelism_threads,
                                         const char* platform_name);
-xla::StatusOr<ExlaClient*> GetTpuClient();
+xla::StatusOr<ExlaTpuClient*> GetTpuClient();
 }  // namespace exla
 
 #endif
