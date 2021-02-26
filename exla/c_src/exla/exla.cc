@@ -311,6 +311,21 @@ ERL_NIF_TERM deallocate_device_mem(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
   }
 }
 
+ERL_NIF_TERM deallocate_tpu_mem(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 1) {
+    return exla::nif::error(env, "Bad argument count.");
+  }
+
+  if (!exla::nif::get<exla::ExlaTpuBuffer*>(env, argv[0], buffer)) {
+    return exla::nif::error(env, "Unable to get buffer");
+  }
+
+  delete *buffer;
+  *buffer = nullptr;
+
+  return exla::nif::ok(env);
+}
+
 // Shape Functions
 
 ERL_NIF_TERM make_shape(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -2132,6 +2147,7 @@ static ErlNifFunc exla_funcs[] = {
   {"get_tpu_client", 0, get_tpu_client},
   {"compile_tpu", 6, compile_tpu},
   {"binary_to_tpu_mem", 4, binary_to_tpu_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"deallocate_tpu_mem", 1, deallocate_device_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"run_tpu", 4, run_tpu, ERL_NIF_DIRTY_JOB_IO_BOUND},
   // ExlaBuffer
   {"binary_to_device_mem", 4, binary_to_device_mem, ERL_NIF_DIRTY_JOB_IO_BOUND},

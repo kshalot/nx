@@ -275,4 +275,7 @@ defmodule EXLA.NIF do
     _arguments,
     _device_id), do: :erlang.nif_error(:undef)
 
+  def deallocate_tpu_mem(_buffer),
+    do: :erlang.nif_error(:undef)
+
 end

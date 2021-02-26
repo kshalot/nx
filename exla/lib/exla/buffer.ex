@@ -57,8 +57,11 @@ defmodule EXLA.Buffer do
 
   Returns `:ok` | `:already_deallocated`.
   """
-  def deallocate({ref, _}) do
-    EXLA.NIF.deallocate_device_mem(ref) |> unwrap!()
+  def deallocate({ref, client_name}) do
+    case client_name do
+      :tpu -> EXLA.NIF.deallocate_tpu_mem(ref) |> unwrap!()
+      _ -> EXLA.NIF.deallocate_device_mem(ref) |> unwrap!()
+    end
   end
 
   defp unwrap!({:ok, ref}), do: ref
