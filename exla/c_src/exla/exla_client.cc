@@ -608,10 +608,10 @@ ExlaClient::Compile(const xla::XlaComputation& computation,
 xla::StatusOr<ExlaTpuExecutable*> ExlaTpuClient::Compile(const xla::XlaComputation& computation,
                                                          std::vector<xla::Shape> argument_layouts,
                                                          xla::ExecutableBuildOptions& build_options) {
-  xla::CompileOptions compile_options =
-    {.argument_layouts = argument_layouts,
-      .executable_build_options = build_options,
-      .compile_portable_executable = true};
+  xla::CompileOptions compile_options;
+  compile_options.argument_layouts = argument_layouts;
+  compile_options.executable_build_options = build_options;
+  compile_options.compile_portable_executable = true;
 
   EXLA_ASSIGN_OR_RETURN(std::unique_ptr<xla::PjRtExecutable> exec,
     client()->Compile(computation, compile_options));

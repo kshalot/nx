@@ -73,7 +73,7 @@ defmodule EXLA.Executable do
 
     run_id = Keyword.get(options, :run_id, System.unique_integer([:positive, :monotonic]))
     replica = Keyword.get(options, :replica, 1)
-    keep_on_device = Keyword.get(options, :keep_on_device, false)
+    keep_on_device = Keyword.get(options, :keep_on_device, true)
     keep_on_device_int = if keep_on_device, do: 1, else: 0
 
     # Launch ID used to coordinate multi-device launches.
@@ -92,7 +92,7 @@ defmodule EXLA.Executable do
 
         %Buffer{data: data, shape: shape, ref: nil} = buffer ->
           if client.platform == :tpu,
-            do: Buffer.place_on_device(buffer, client, 0),
+            do: Buffer.place_on_device(buffer, client, 0).ref,
             else: {data, shape.ref}
       end)
 

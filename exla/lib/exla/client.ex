@@ -44,13 +44,13 @@ defmodule EXLA.Client do
         end
         |> unwrap!()
 
-      device_count = EXLA.NIF.get_device_count(ref) |> unwrap!()
+      device_count = if platform != :tpu, do: EXLA.NIF.get_device_count(ref) |> unwrap!(), else: 8
 
       default_device_ordinal =
         if default = options[:default_device_ordinal] do
           default
         else
-          EXLA.NIF.get_default_device_ordinal(ref) |> unwrap!()
+          if platform != :tpu, do: EXLA.NIF.get_default_device_ordinal(ref) |> unwrap!(), else: 0
         end
 
       client = %Client{
