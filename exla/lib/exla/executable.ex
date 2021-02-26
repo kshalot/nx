@@ -91,10 +91,14 @@ defmodule EXLA.Executable do
           ref
 
         %Buffer{data: data, shape: shape, ref: nil} = buffer ->
-          if client.platform == :tpu,
-            do: Buffer.place_on_device(buffer, client, 0).ref,
-            else: {data, shape.ref}
+          if client.platform == :tpu do
+            {ref, _} = Buffer.place_on_device(buffer, client, 0).ref
+            ref
+          else
+            {data, shape.ref}
+          end
       end)
+    IO.inspect inputs
 
     data =
       case client.platform do

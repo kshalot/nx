@@ -668,7 +668,7 @@ xla::StatusOr<ERL_NIF_TERM> ExlaTpuExecutable::Run(ErlNifEnv* env,
 
   ExlaTpuBuffer* result_tpu_buff = new ExlaTpuBuffer(std::move(result.at(0)));
 
-  return nif::ok(env, nif::make<ExlaTpuBuffer*>(env, result_tpu_buff));
+  return nif::ok(env, enif_make_tuple2(env, nif::make<ExlaTpuBuffer*>(env, result_tpu_buff), enif_make_int(env, 0)));
 }
 
 xla::StatusOr<ExlaClient*> GetHostClient(int num_replicas,

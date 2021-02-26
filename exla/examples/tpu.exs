@@ -1,5 +1,6 @@
 defmodule Softmax do
-  @default_defn_compiler {Exla, client: :tpu, max_float_type: {:f, 32}}
+  import Nx.Defn
+  @default_defn_compiler {EXLA, client: :tpu, max_float_type: {:f, 32}}
 
   defn softmax(t), do: Nx.exp(t) / Nx.sum(Nx.exp(t))
 end
