@@ -2,6 +2,9 @@ size = 1_000_000
 t16 = Nx.tensor(for(_ <- 1..size, do: :rand.uniform()), type: {:bf, 16})
 t32 = Nx.tensor(for(_ <- 1..size, do: :rand.uniform()), type: {:f, 32})
 
+dt16 = Nx.backend_transfer(t16, EXLA.DeviceBackend, client: :tpu)
+dt32 = Nx.backend_transfer(t32, EXLA.DeviceBackend, client: :tpu)
+
 defmodule Softmax do
   import Nx.Defn
 
@@ -22,12 +25,12 @@ IO.inspect(Softmax.softmax(t32))
 IO.inspect(Softmax.host(t32))
 
 benches = %{
-  "elixir bf16" => fn -> Softmax.softmax(t16) end,
-  "elixir f32" => fn -> Softmax.softmax(t32) end,
-  "xla cpu bf16" => fn -> Softmax.host(t16) end,
-  "xla cpu f32" => fn -> Softmax.host(t32) end,
-  "xla tpu bf16" => {fn -> Softmax.tpu(t16) end, after_each: fn _ -> :erlang.garbage_collect() end},
-  "xla tpu f32" => {fn -> Softmax.tpu(t32) end, after_each: fn _ -> :erlang.garbage_collect() end}
+#  "elixir bf16" => fn -> Softmax.softmax(t16) end,
+#  "elixir f32" => fn -> Softmax.softmax(t32) end,
+#  "xla cpu bf16" => fn -> Softmax.host(t16) end,
+#  "xla cpu f32" => fn -> Softmax.host(t32) end,
+  "xla tpu bf16" => {fn -> Softmax.tpu(t16) end, after_each: &Nx.backend_deallocate/1},
+  "xla tpu f32" => {fn -> Softmax.tpu(t32) end, after_each: &Nx.backend_deallocate/1}
 }
 
 Benchee.run(

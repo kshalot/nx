@@ -98,8 +98,7 @@ defmodule EXLA.Executable do
             {data, shape.ref}
           end
       end)
-    IO.inspect inputs
-
+ 
     data =
       case client.platform do
         :tpu ->
